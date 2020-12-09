@@ -7,3 +7,4 @@
 
 ### Autorzy
 * Bartłomiej Piekarz
+* Katarzyna Augustyn
