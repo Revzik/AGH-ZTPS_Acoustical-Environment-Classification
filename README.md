@@ -8,4 +8,4 @@
 ### Autorzy
 * Bartłomiej Piekarz
 * Katarzyna Augustyn
-*Dominika Godzisz
+* Dominika Godzisz
