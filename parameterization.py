@@ -1,6 +1,8 @@
 """
 This script is used to extract features vector from Room Impulse Response.
 STFT - function calculating STFT (power spectrum)
+iSTFT - calculates iSTFT
+optimal_synth_window - calculates synthesis window based on analysis window
 MelFilters - function calculating Mel Filter Bank
 features - function calculating LMSC and MFCC coefficients of RIR
 
@@ -38,6 +40,58 @@ def STFT(x, W, L, N=None):
         power=(h**2)/(N/2+1)
         X[i,:]=power
     return X
+
+def iSTFT(X, W, L):
+    """
+    Parameters:
+    X - STFT
+    W - synthesis window
+    L - Overlap between consecutive frames (samples)
+    
+    Returns:
+    x - reconstructed signal
+    """
+    # Number of frames and Number of samples
+    K, N = X.shape
+    
+    # Number of samples in synthesis window
+    WLen = W.size
+    # Częstotliwość próbkowania sygnału oknem
+    hop = WLen - L
+    xlen=(K*hop)+L
+    x=np.zeros(xlen)
+    
+    for i in range(K):
+        s = np.real(np.fft.ifft(X[i,:]))
+        Ws=np.zeros(N)
+        Ws[0:WLen]=W
+        swin=s*Ws
+        trim=x[i*hop:(i*hop)+N].size
+        x[i*hop:(i*hop)+N]=x[i*hop:(i*hop)+N] + swin[0:trim]
+
+    return x
+
+def optimal_synth_window(window, L):
+    """
+    Parameters:
+    window - analysis window
+    L - Overlap between consecutive frames (samples)
+    
+    Returns:
+    s_win - synthesis window
+    """
+    WL=window.size
+    S=window.size-L
+    app_0=np.zeros(S)
+    it_win=window
+    sw=window**2
+    for shift in range(S,WL,S):
+        it_win=np.append(app_0,it_win)
+        it_win=np.append(it_win,app_0)
+        sw=sw+(it_win[0:WL]**2)
+        sw=sw+(it_win[it_win.size-WL:]**2)
+    s_win=window/sw
+    return s_win
 
 def MelFilters(fs,nfilt,nfft):
     """
