@@ -51,13 +51,11 @@ def dereverberate(wave, fs, expected_response_path="real_impulse_responses/rir_m
     # =================== Signal stft ==================
     window = np.hanning(win_len)
     sig_stft = STFT(wave, window, win_ovlap, nfft)
+    frame_count = sig_stft.shape[0]
 
     # ==================== Constants ===================
-    # window step / hop
-    win_step = win_len - win_ovlap
-
-    # minimum gain per frequency
-    min_gain = np.zeros(nfft)
+    # minimum gain of dry signal per frequency
+    min_gain_dry = np.zeros(nfft)
 
     # maximum impulse response estimate
     max_h = imp_stft
@@ -90,7 +88,40 @@ def dereverberate(wave, fs, expected_response_path="real_impulse_responses/rir_m
     gain_dry = np.ones(nfft)
     gain_wet = np.zeros(nfft)
 
+    for i in range(frame_count):
+        # estimate signals based on i-th frame
+        for b in range(blocks):
 
+            estimate = sig_stft[i, :] / raw_frames[b, :]
+            for f in range(nfft):
+                if estimate[f] >= h_stft[i, f]:
+                    estimate[f] = h_stft[i, f] * bias[b, f] + np.eps
+                c[b, f] = np.min(estimate[f], max_h[b, f])
+
+            h_stft[b, :] = alpha[b, :] * h_stft[b, :] + (1 - alpha[b, :]) * c[b, :]
+
+        # calculating gains
+        new_gain_dry = 1 - np.sum(dry_frames * h_stft, axis=0) / sig_stft[i, :]
+        for f in nfft:
+            if new_gain_dry[f] < min_gain_dry[f]:
+                new_gain_dry[f] = min_gain_dry[f]
+        gain_dry = gamma * gain_dry + (1 - gamma) * new_gain_dry
+
+        new_gain_wet = 1 - gain_dry
+        gain_wet = gamma * gain_wet + (1 - gamma) * new_gain_wet
+
+        # calculatnig signals
+        dry_stft[i, :] = gain_dry * sig_stft[i, :]
+        wet_stft[i, :] = gain_wet * sig_stft[i, :]
+
+        # shifting previous frames
+        dry_frames[1:blocks, :] = dry_frames[0:blocks - 1, :]
+        dry_frames[0, :] = dry_stft[i, :]
+
+        raw_frames[1:blocks, :] = raw_frames[0:blocks - 1, :]
+        raw_frames[0, :] = sig_stft[i, :]
+
+    # TODO: calculate ifft of h_stft, dry_stft, wet_stft
     h_rir = np.zeros(blocks)
     wave_dry = np.zeros(wave.shape)
     wave_wet = np.zeros(wave.shape)
