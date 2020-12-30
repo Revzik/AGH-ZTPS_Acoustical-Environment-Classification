@@ -16,7 +16,7 @@ import scipy as sp
 import pickle
 
 from read_impulse_response import compute_stft
-from parameterization import STFT
+from parameterization import *
 
 
 def dereverberate(wave, fs, expected_response_path="real_impulse_responses/rir_medium.p", preloaded=True):
@@ -70,8 +70,8 @@ def dereverberate(wave, fs, expected_response_path="real_impulse_responses/rir_m
 
     # ==================== Algorithm ===================
     # dry_stft and wet_stft are the estimated dry and reverberant signals in frequency-time domain
-    dry_stft = np.zeros((blocks, nfft))
-    wet_stft = np.zeros((blocks, nfft))
+    dry_stft = np.zeros((frame_count, nfft))
+    wet_stft = np.zeros((frame_count, nfft))
 
     # h_stft is the estimated impulse response in frequency-time domain
     h_stft = max_h / 2
@@ -94,15 +94,15 @@ def dereverberate(wave, fs, expected_response_path="real_impulse_responses/rir_m
 
             estimate = sig_stft[i, :] / raw_frames[b, :]
             for f in range(nfft):
-                if estimate[f] >= h_stft[i, f]:
-                    estimate[f] = h_stft[i, f] * bias[b, f] + np.eps
-                c[b, f] = np.min(estimate[f], max_h[b, f])
+                if estimate[f] >= h_stft[b, f]:
+                    estimate[f] = h_stft[b, f] * bias[b, f] + np.finfo(np.float64).eps
+                c[b, f] = np.min([estimate[f], max_h[b, f]])
 
             h_stft[b, :] = alpha[b, :] * h_stft[b, :] + (1 - alpha[b, :]) * c[b, :]
 
         # calculating gains
         new_gain_dry = 1 - np.sum(dry_frames * h_stft, axis=0) / sig_stft[i, :]
-        for f in nfft:
+        for f in range(nfft):
             if new_gain_dry[f] < min_gain_dry[f]:
                 new_gain_dry[f] = min_gain_dry[f]
         gain_dry = gamma * gain_dry + (1 - gamma) * new_gain_dry
@@ -121,9 +121,10 @@ def dereverberate(wave, fs, expected_response_path="real_impulse_responses/rir_m
         raw_frames[1:blocks, :] = raw_frames[0:blocks - 1, :]
         raw_frames[0, :] = sig_stft[i, :]
 
-    # TODO: calculate ifft of h_stft, dry_stft, wet_stft
-    h_rir = np.zeros(blocks)
-    wave_dry = np.zeros(wave.shape)
-    wave_wet = np.zeros(wave.shape)
+    window = optimal_synth_window(window, win_ovlap)
+
+    h_rir = iSTFT(h_stft, window, win_ovlap)
+    wave_dry = iSTFT(dry_stft, window, win_ovlap)
+    wave_wet = iSTFT(wet_stft, window, win_ovlap)
 
     return h_rir, wave_dry, wave_wet
