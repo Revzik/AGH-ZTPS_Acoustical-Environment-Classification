@@ -12,14 +12,13 @@ Copyright to:
     Bartłomiej Piekarz
 """
 import numpy as np
-import scipy as sp
 import pickle
 
 from read_impulse_response import compute_stft
-from parameterization import *
+from parameterization import STFT, iSTFT, optimal_synth_window
 
 
-def dereverberate(wave, fs, expected_response_path="real_impulse_responses/rir_medium.p", preloaded=True):
+def dereverberate(wave, expected_response_path="real_impulse_responses/rir_medium.p", preloaded=True):
     """
     Estimates the impulse response in a room the recording took place
 
@@ -43,7 +42,7 @@ def dereverberate(wave, fs, expected_response_path="real_impulse_responses/rir_m
         imp_stft = ref_imp["stft"]
     else:
         win_len = 1024
-        win_ovlap = 512
+        win_ovlap = 768
         nfft = 1024
         blocks = 400
         imp_stft = compute_stft(expected_response_path, win_len, win_ovlap, nfft, blocks)
@@ -58,8 +57,8 @@ def dereverberate(wave, fs, expected_response_path="real_impulse_responses/rir_m
     min_gain_dry = np.zeros(nfft)
 
     # maximum impulse response estimate
-    max_h = imp_stft
-    # max_h = np.ones((blocks, nfft)) * 0.9
+    # max_h = imp_stft
+    max_h = np.ones((blocks, nfft)) * 0.9
 
     # bias used to keep magnitudes from getting stuck on a wrong minimum
     bias = np.ones((blocks, nfft)) * 1.01
@@ -120,6 +119,10 @@ def dereverberate(wave, fs, expected_response_path="real_impulse_responses/rir_m
 
         raw_frames[1:blocks, :] = raw_frames[0:blocks - 1, :]
         raw_frames[0, :] = sig_stft[i, :]
+
+    h_stft = np.sqrt(h_stft)
+    dry_stft = np.sqrt(dry_stft)
+    wet_stft = np.sqrt(wet_stft)
 
     window = optimal_synth_window(window, win_ovlap)
 
