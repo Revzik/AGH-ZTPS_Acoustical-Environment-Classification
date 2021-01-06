@@ -14,7 +14,7 @@ Copyright to:
 
 import numpy as np
 from scipy.fftpack import dct
-def STFT(x, W, L, N=None):
+def STFT(x, W, L, N=None, power=False):
     """
     This function computes Short-Time Fourier Transfor of the signal
     Parameters
@@ -36,10 +36,11 @@ def STFT(x, W, L, N=None):
         st=int(i*(WLen-L))
         end=int(st+WLen)
         h=np.fft.fft(x[st:end]*W,n=N)
-        h=np.abs(h)
-        power=(h**2)/(N/2+1)
-        X[i,:]=power
-    return X
+        X[i,:]=h/(N/2+1)
+    if power:
+        return np.power(np.abs(X), 2)
+    else:
+        return X
 
 def iSTFT(X, W, L):
     """
@@ -132,7 +133,7 @@ def features(RIR, fs,dt=0.025):
     win=np.hamming(int(dt*fs)) #Hamming window
     step=int(fs*dt*0.5) #50% overlapping
     nfft=512 #fft size
-    RIR_STFT=STFT(x=RIR,W=win,L=step,N=nfft)
+    RIR_STFT=STFT(x=RIR,W=win,L=step,N=nfft,power=True)
     MEL=MelFilters(fs,26,nfft)
     MSC=np.dot(RIR_STFT[:,:int(np.floor(nfft/2)+1)],MEL.T)
     MSC = np.where(MSC == 0, np.finfo(float).eps, MSC)
