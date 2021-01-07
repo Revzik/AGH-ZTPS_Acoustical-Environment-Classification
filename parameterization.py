@@ -31,14 +31,14 @@ def STFT(x, W, L, N=None, power=False):
     if N is None:
         N = WLen
     K=int((xLen-L)/(WLen-L))
-    X=np.zeros((K,N))
+    X=np.zeros((K,N), dtype=np.csingle)
     for i in range(K):
         st=int(i*(WLen-L))
         end=int(st+WLen)
         h=np.fft.fft(x[st:end]*W,n=N)
-        X[i,:]=h/(N/2+1)
+        X[i,:]=h
     if power:
-        return np.power(np.abs(X), 2)
+        return np.power(np.abs(X), 2) / (N/2+1)
     else:
         return X
 

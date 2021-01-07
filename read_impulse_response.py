@@ -20,7 +20,7 @@ def compute_stft(path, window_length, overlap, nfft, blocks):
     window = np.hanning(window_length)
     wave, fs = soundfile.read(path)
 
-    tmp_stft = STFT(wave, window, overlap, nfft)
+    tmp_stft = STFT(wave, window, overlap, nfft, power=True)
 
     K = tmp_stft.shape[0]
     stft = np.zeros((blocks, nfft))
@@ -29,7 +29,7 @@ def compute_stft(path, window_length, overlap, nfft, blocks):
     else:
         stft[0:K, :] = tmp_stft
 
-    return stft
+    return stft[:, 0:nfft // 2 + 1]
 
 
 def save(path, stft, window_length, overlap, nfft, blocks):
@@ -56,20 +56,20 @@ def save(path, stft, window_length, overlap, nfft, blocks):
 
 
 if __name__ == "__main__":
-    _path_in = "real_impulse_responses/IMP_bunker_b.wav"
+    _path_in = "real_impulse_responses/IMP_bedroom.wav"
     _window_length = 1024
-    _overlap = 512
+    _overlap = 768
     _nfft = 1024
-    _blocks = 200
+    _blocks = 400
 
-    _path_out = "real_impulse_responses/rir_long.p"
+    _path_out = "real_impulse_responses/rir_short.p"
 
     _stft = compute_stft(_path_in, _window_length, _overlap, _nfft, _blocks)
     save(_path_out, _stft, _window_length, _overlap, _nfft, _blocks)
 
-    fig, axes = plt.subplots(2, 1, figsize=(8, 6))
-    wave, fs = soundfile.read(_path_in)
-    axes[0].plot(wave)
-    axes[1].pcolormesh(_stft.T)
-    axes[1].set_ylim([0, _stft.shape[1] / 2])
-    fig.show()
+    # fig, axes = plt.subplots(2, 1, figsize=(8, 6))
+    # wave, fs = soundfile.read(_path_in)
+    # axes[0].plot(wave)
+    # axes[1].pcolormesh(_stft.T)
+    # axes[1].set_ylim([0, _stft.shape[1] / 2])
+    # fig.show()
