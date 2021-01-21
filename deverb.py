@@ -12,10 +12,8 @@ Copyright to:
     Bartłomiej Piekarz
 """
 import numpy as np
-import pickle
 import time
 
-from read_impulse_response import compute_stft
 from parameterization import STFT, iSTFT, optimal_synth_window
 
 
@@ -26,14 +24,13 @@ def reconstruct(stft, window, overlap):
     return signal / np.max(np.abs(signal))
 
 
-def dereverberate(wave, expected_response_path="real_impulse_responses/rir_medium.p", preloaded=False):
+def dereverberate(wave, fs):
     """
     Estimates the impulse response in a room the recording took place
 
     :param wave: 1-D ndarray of wave samples
-    :param expected_response_path: path to a file containing expected impulse response (default: rir_medium.p)
-    :param preloaded: is the response preloaded (default: True)
-    :returns: (h_rir) 1-D ndarray of the impulse response,
+    :param fs: int - sampling frequency
+    :returns: (h_stft_pow) 2-D ndarray power STFT of h_rir,
               (wave_dry) 1-D ndarray of the dry signal,
               (wave_wet) 1-D ndarray of the wet signal
     """
@@ -41,20 +38,14 @@ def dereverberate(wave, expected_response_path="real_impulse_responses/rir_mediu
     loop_time = 0
 
     # =========== Reference impulse response ===========
-    if preloaded:
-        with open(expected_response_path, "rb") as f:
-            ref_imp = pickle.load(f)
+    win_len_ms = 25
+    win_ovlap_p = 0.75
+    nfft = 1024
+    blocks = 400
 
-        win_len = ref_imp["window_length"]
-        win_ovlap = ref_imp["overlap"]
-        nfft = ref_imp["nfft"]
-        blocks = ref_imp["blocks"]
-        imp_stft = ref_imp["stft"]
-    else:
-        win_len = 1024
-        win_ovlap = 768
-        nfft = 1024
-        blocks = 200
+    # ================ Times to samples ================
+    win_len = int(1000 * win_len_ms / fs)
+    win_ovlap = int(win_len * win_ovlap_p)
 
     # =================== Signal stft ==================
     window = np.hanning(win_len)
@@ -67,10 +58,7 @@ def dereverberate(wave, expected_response_path="real_impulse_responses/rir_mediu
     min_gain_dry = 0
 
     # maximum impulse response estimate
-    if preloaded:
-        max_h = imp_stft
-    else:
-        max_h = np.linspace(np.ones(frequency_count), np.zeros(frequency_count), blocks)
+    max_h = np.linspace(np.ones(frequency_count), np.zeros(frequency_count), blocks)
 
     # bias used to keep magnitudes from getting stuck on a wrong minimum
     bias = 1.01
@@ -135,14 +123,9 @@ def dereverberate(wave, expected_response_path="real_impulse_responses/rir_mediu
 
         loop_time = round(1000 * (time.time() - loop_time))
 
-    h_stft = np.sqrt(h_stft_pow)
-    # dry_stft = np.sqrt(dry_stft)
-    # wet_stft = np.sqrt(wet_stft)
-
     window = optimal_synth_window(window, win_ovlap)
 
-    h_rir = reconstruct(h_stft, window, win_ovlap)
     wave_dry = reconstruct(dry_stft, window, win_ovlap)
     wave_wet = reconstruct(wet_stft, window, win_ovlap)
 
-    return h_rir, wave_dry, wave_wet
+    return h_stft_pow, wave_dry, wave_wet

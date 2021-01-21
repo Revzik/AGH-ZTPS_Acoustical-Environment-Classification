@@ -14,6 +14,20 @@ Copyright to:
 
 import numpy as np
 from scipy.fftpack import dct
+
+
+def first_larger_square(x):
+    """
+    Computing firt power of 2 that is larger than or equal to x
+    """
+    if x < 1:
+        return None
+    power = 1
+    while power < x:
+        power *= 2
+    return power
+
+
 def STFT(x, W, L, N=None, power=False):
     """
     This function computes Short-Time Fourier Transfor of the signal
@@ -41,6 +55,7 @@ def STFT(x, W, L, N=None, power=False):
         return np.power(np.abs(X), 2) / (N/2+1)
     else:
         return X
+
 
 def iSTFT(X, W, L):
     """
@@ -72,6 +87,7 @@ def iSTFT(X, W, L):
 
     return x
 
+
 def optimal_synth_window(window, L):
     """
     Parameters:
@@ -93,6 +109,7 @@ def optimal_synth_window(window, L):
         sw=sw+(it_win[it_win.size-WL:]**2)
     s_win=window/sw
     return s_win
+
 
 def MelFilters(fs,nfilt,nfft):
     """
@@ -119,6 +136,7 @@ def MelFilters(fs,nfilt,nfft):
         for f in range(f_m,f_h):
             fbank[i-1,f]=(f_h-f)/(f_h-f_m)
     return fbank
+
 
 def features(RIR, fs,dt=0.025):
     """
