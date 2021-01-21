@@ -14,7 +14,40 @@ Copyright to:
 import numpy as np
 import time
 
-from parameterization import STFT, iSTFT, optimal_synth_window
+from parameterization import STFT, iSTFT, optimal_synth_window, first_larger_square
+
+
+DEF_PARAMS = {
+    "win_len": 25,
+    "win_ovlap": 0.75,
+    "blocks": 400,
+    "min_gain_dry": 0,
+    "max_h_type": "lin-lin",
+    "bias": 1.01,
+    "alpha": 0.2,
+    "gamma": 0.3,
+}
+
+
+def get_max_h_matrix(type, freqs, blocks):
+    if type == "log-log":
+        return np.logspace(np.ones(freqs), np.ones(freqs) * np.finfo(np.float32).eps, blocks).T * \
+               np.logspace(np.ones(blocks), np.ones(blocks) * np.finfo(np.float32).eps, freqs)
+    elif type == "log-lin":
+        return np.logspace(np.ones(freqs), np.ones(freqs) * np.finfo(np.float32).eps, blocks).T * \
+               np.linspace(np.ones(blocks), np.zeros(blocks), freqs)
+    elif type == "log-full":
+        return np.logspace(np.ones(freqs), np.ones(freqs) * np.finfo(np.float32).eps, blocks).T
+    elif type == "lin-log":
+        return np.logspace(np.ones(freqs), np.ones(freqs) * np.finfo(np.float32).eps, blocks).T * \
+               np.logspace(np.ones(blocks), np.ones(blocks) * np.finfo(np.float32).eps, freqs)
+    elif type == "lin-lin":
+        return np.linspace(np.ones(freqs), np.zeros(freqs), blocks).T * \
+               np.linspace(np.ones(blocks), np.zeros(blocks), freqs)
+    elif type == "lin-full":
+        return np.linspace(np.ones(freqs), np.zeros(freqs), blocks).T
+    else:
+        return np.ones((freqs, blocks))
 
 
 def reconstruct(stft, window, overlap):
@@ -24,12 +57,14 @@ def reconstruct(stft, window, overlap):
     return signal / np.max(np.abs(signal))
 
 
-def dereverberate(wave, fs):
+def dereverberate(wave, fs, params=None):
     """
     Estimates the impulse response in a room the recording took place
 
     :param wave: 1-D ndarray of wave samples
     :param fs: int - sampling frequency
+    :param params: dict containing the algorithm parameters - keys:
+
     :returns: (h_stft_pow) 2-D ndarray power STFT of h_rir,
               (wave_dry) 1-D ndarray of the dry signal,
               (wave_wet) 1-D ndarray of the wet signal
@@ -37,35 +72,41 @@ def dereverberate(wave, fs):
     # estimating execution time
     loop_time = 0
 
-    # =========== Reference impulse response ===========
-    win_len_ms = 25
-    win_ovlap_p = 0.75
-    nfft = 1024
-    blocks = 400
+    # =================== Parameters ===================
+    if params is None:
+        params = DEF_PARAMS
+
+    # ==================== Windowing ===================
+    win_len_ms = params["win_len"]
+    win_ovlap_p = params["win_ovlap"]
 
     # ================ Times to samples ================
     win_len = int(1000 * win_len_ms / fs)
     win_ovlap = int(win_len * win_ovlap_p)
+    window = np.hanning(win_len)
 
     # =================== Signal stft ==================
-    window = np.hanning(win_len)
+    nfft = first_larger_square(win_len)
     sig_stft = STFT(wave, window, win_ovlap, nfft)
     sig_stft = sig_stft[:, 0:nfft // 2 + 1]
     frame_count, frequency_count = sig_stft.shape
 
     # ==================== Constants ===================
+    # length of the impulse response
+    blocks = params["blocks"]
+
     # minimum gain of dry signal per frequency
-    min_gain_dry = 0
+    min_gain_dry = params["min_gain_dry"]
 
     # maximum impulse response estimate
-    max_h = np.linspace(np.ones(frequency_count), np.zeros(frequency_count), blocks)
+    max_h = get_max_h_matrix(params["max_h_type"], frequency_count, blocks)
 
     # bias used to keep magnitudes from getting stuck on a wrong minimum
-    bias = 1.01
+    bias = params["bias"]
 
     # alpha and gamma - smoothing factors for impulse response magnitude and gain
-    alpha = 0.2
-    gamma = 0.3
+    alpha = params["alpha"]
+    gamma = params["gamma"]
 
     # ==================== Algorithm ===================
     # dry_stft and wet_stft are the estimated dry and reverberant signals in frequency-time domain
@@ -98,7 +139,7 @@ def dereverberate(wave, fs):
         for b in range(blocks):
 
             estimate = frame_power / raw_frames[b, :]
-            np.place(estimate, estimate >= h_stft_pow[b, :], h_stft_pow[b, :] * bias + np.finfo(np.float64).eps)
+            np.place(estimate, estimate >= h_stft_pow[b, :], h_stft_pow[b, :] * bias + np.finfo(np.float32).eps)
             np.fmin(estimate, max_h[b, :], out=c[b, :])
             h_stft_pow[b, :] = alpha * h_stft_pow[b, :] + (1 - alpha) * c[b, :]
 
