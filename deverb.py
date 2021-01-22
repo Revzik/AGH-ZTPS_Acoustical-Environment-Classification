@@ -31,23 +31,23 @@ DEF_PARAMS = {
 
 def get_max_h_matrix(type, freqs, blocks):
     if type == "log-log":
-        return np.logspace(np.ones(freqs), np.ones(freqs) * np.finfo(np.float32).eps, blocks).T * \
-               np.logspace(np.ones(blocks), np.ones(blocks) * np.finfo(np.float32).eps, freqs)
+        return np.logspace(np.ones(freqs), np.ones(freqs) * np.finfo(np.float32).eps, blocks) * \
+               np.logspace(np.ones(blocks), np.ones(blocks) * np.finfo(np.float32).eps, freqs).T
     elif type == "log-lin":
-        return np.logspace(np.ones(freqs), np.ones(freqs) * np.finfo(np.float32).eps, blocks).T * \
-               np.linspace(np.ones(blocks), np.zeros(blocks), freqs)
+        return np.logspace(np.ones(freqs), np.ones(freqs) * np.finfo(np.float32).eps, blocks) * \
+               np.linspace(np.ones(blocks), np.zeros(blocks), freqs).T
     elif type == "log-full":
-        return np.logspace(np.ones(freqs), np.ones(freqs) * np.finfo(np.float32).eps, blocks).T
+        return np.logspace(np.ones(freqs), np.ones(freqs) * np.finfo(np.float32).eps, blocks)
     elif type == "lin-log":
-        return np.logspace(np.ones(freqs), np.ones(freqs) * np.finfo(np.float32).eps, blocks).T * \
-               np.logspace(np.ones(blocks), np.ones(blocks) * np.finfo(np.float32).eps, freqs)
+        return np.logspace(np.ones(freqs), np.ones(freqs) * np.finfo(np.float32).eps, blocks) * \
+               np.logspace(np.ones(blocks), np.ones(blocks) * np.finfo(np.float32).eps, freqs).T
     elif type == "lin-lin":
-        return np.linspace(np.ones(freqs), np.zeros(freqs), blocks).T * \
-               np.linspace(np.ones(blocks), np.zeros(blocks), freqs)
+        return np.linspace(np.ones(freqs), np.zeros(freqs), blocks) * \
+               np.linspace(np.ones(blocks), np.zeros(blocks), freqs).T
     elif type == "lin-full":
-        return np.linspace(np.ones(freqs), np.zeros(freqs), blocks).T
+        return np.linspace(np.ones(freqs), np.zeros(freqs), blocks)
     else:
-        return np.ones((freqs, blocks))
+        return np.ones((freqs, blocks)).T
 
 
 def reconstruct(stft, window, overlap):
@@ -57,14 +57,14 @@ def reconstruct(stft, window, overlap):
     return signal / np.max(np.abs(signal))
 
 
-def dereverberate(wave, fs, params=None):
+def dereverberate(wave, fs, params=None, estimate_execution_time=True):
     """
     Estimates the impulse response in a room the recording took place
 
     :param wave: 1-D ndarray of wave samples
     :param fs: int - sampling frequency
     :param params: dict containing the algorithm parameters - keys:
-
+    :param estimate_execution_time: should we print estimated execution time for each next frame
     :returns: (h_stft_pow) 2-D ndarray power STFT of h_rir,
               (wave_dry) 1-D ndarray of the dry signal,
               (wave_wet) 1-D ndarray of the wet signal
@@ -81,7 +81,7 @@ def dereverberate(wave, fs, params=None):
     win_ovlap_p = params["win_ovlap"]
 
     # ================ Times to samples ================
-    win_len = int(1000 * win_len_ms / fs)
+    win_len = int(win_len_ms / 1000 * fs)
     win_ovlap = int(win_len * win_ovlap_p)
     window = np.hanning(win_len)
 
@@ -128,9 +128,10 @@ def dereverberate(wave, fs, params=None):
     gain_wet = np.zeros(frequency_count)
 
     for i in range(frame_count):
-        remaining = loop_time * (frame_count - i)
-        print("Processing frame {} of {}, estimated time left: {} ms".format(i + 1, frame_count, remaining))
-        loop_time = time.time()
+        if estimate_execution_time:
+            remaining = loop_time * (frame_count - i)
+            print("Processing frame {} of {}, estimated time left: {} ms".format(i + 1, frame_count, remaining))
+            loop_time = time.time()
 
         frame = sig_stft[i, :]
         frame_power = np.power(np.abs(frame), 2)
@@ -162,7 +163,8 @@ def dereverberate(wave, fs, params=None):
         raw_frames[1:blocks, :] = raw_frames[0:blocks - 1, :]
         raw_frames[0, :] = frame_power
 
-        loop_time = round(1000 * (time.time() - loop_time))
+        if estimate_execution_time:
+            loop_time = round(1000 * (time.time() - loop_time))
 
     window = optimal_synth_window(window, win_ovlap)
 
