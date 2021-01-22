@@ -11,22 +11,27 @@ Copyright to:
     Dominika Godzisz
     Bartłomiej Piekarz
 """
+import soundfile as sf
 import numpy as np
 import time
+import matplotlib.pyplot as plt
 
 from parameterization import STFT, iSTFT, optimal_synth_window, first_larger_square
 
 
 DEF_PARAMS = {
     "win_len": 25,
-    "win_ovlap": 0.75,
+    "win_ovlap": 0.6,
     "blocks": 400,
-    "min_gain_dry": 0,
     "max_h_type": "lin-lin",
-    "bias": 1.01,
-    "alpha": 0.2,
+    "min_gain_dry": 0,
+    "bias": 1,
+    "alpha": 0.1,
     "gamma": 0.3,
 }
+TITLES = ["short", "medium", "long"]
+H_RIR = ["deverb_test_samples/IMP_short.wav", "deverb_test_samples/IMP_medium.wav", "deverb_test_samples/IMP_long.wav"]
+SAMPLES = ["deverb_test_samples/test_short.wav", "deverb_test_samples/test_medium.wav", "deverb_test_samples/test_long.wav"]
 
 
 def get_max_h_matrix(type, freqs, blocks):
@@ -70,7 +75,7 @@ def dereverberate(wave, fs, params=None, estimate_execution_time=True):
               (wave_wet) 1-D ndarray of the wet signal
     """
     # estimating execution time
-    loop_time = 0
+    loop_times = np.zeros(10)
 
     # =================== Parameters ===================
     if params is None:
@@ -129,9 +134,10 @@ def dereverberate(wave, fs, params=None, estimate_execution_time=True):
 
     for i in range(frame_count):
         if estimate_execution_time:
-            remaining = loop_time * (frame_count - i)
+            remaining = round(np.mean(loop_times) * (frame_count - i))
+            loop_times[1:] = loop_times[0:-1]
+            loop_times[0] = time.time()
             print("Processing frame {} of {}, estimated time left: {} ms".format(i + 1, frame_count, remaining))
-            loop_time = time.time()
 
         frame = sig_stft[i, :]
         frame_power = np.power(np.abs(frame), 2)
@@ -164,7 +170,7 @@ def dereverberate(wave, fs, params=None, estimate_execution_time=True):
         raw_frames[0, :] = frame_power
 
         if estimate_execution_time:
-            loop_time = round(1000 * (time.time() - loop_time))
+            loop_times[0] = round(1000 * (time.time() - loop_times[0]))
 
     window = optimal_synth_window(window, win_ovlap)
 
@@ -172,3 +178,47 @@ def dereverberate(wave, fs, params=None, estimate_execution_time=True):
     wave_wet = reconstruct(wet_stft, window, win_ovlap)
 
     return h_stft_pow, wave_dry, wave_wet
+
+
+def test_deverb():
+    for i, item in enumerate(SAMPLES):
+        wave, fs = sf.read(item)
+        wave = wave / np.max(np.abs(wave))
+        H_rir, dry_wav, wet_wav = dereverberate(wave, fs)
+
+        min_size = np.min([wave.size, dry_wav.size, wet_wav.size])
+        t = np.linspace(0, min_size / fs, min_size)
+
+        fig, axes = plt.subplots(3, 1, figsize=(10, 10))
+        fig.suptitle("estimated signals - {} reverb".format(TITLES[i]))
+        axes[0].plot(t, wave[0:min_size])
+        axes[0].set_title("original")
+        axes[1].plot(t, dry_wav[0:min_size])
+        axes[1].set_title("dry")
+        axes[2].plot(t, wet_wav[0:min_size])
+        axes[2].set_title("reverberant")
+        axes[2].set_xlabel(r"time $[s]$")
+        fig.tight_layout()
+        fig.show()
+
+        frames, freqs = H_rir.shape
+        hop = DEF_PARAMS["win_len"] * (1 - DEF_PARAMS["win_ovlap"]) / 1000
+        f = np.linspace(0, fs / 2000, freqs)
+        t = np.linspace(0, hop * frames, frames)
+        fxx, txx = np.meshgrid(f, t)
+
+        fig, ax = plt.subplots(figsize=(6, 5))
+        ax.pcolormesh(txx, fxx, H_rir)
+        ax.set_title(r"estimated $H_{rir}$: " + TITLES[i])
+        ax.set_xlabel(r"time $[s]$")
+        ax.set_ylabel(r"frequency $[kHz]$")
+        fig.show()
+
+        with open("tmp/dry_{}.wav".format(TITLES[i]), "wb") as f:
+            sf.write(f, dry_wav, fs)
+        with open("tmp/wet_{}.wav".format(TITLES[i]), "wb") as f:
+            sf.write(f, wet_wav, fs)
+
+
+if __name__ == "__main__":
+    test_deverb()

@@ -17,18 +17,18 @@ from parameterization import STFT, first_larger_square
 
 MAX_H_TYPES = ["log-log", "log-lin", "log-full", "lin-log", "lin-lin", "lin-full", "const"]
 PARAMS = {
-    "win_len": 20,
-    "win_ovlap": 0.75,
+    "win_len": 25,
+    "win_ovlap": 0.6,
     "blocks": 400,
     "max_h_type": "lin-lin",
     "min_gain_dry": 0,
-    "bias": 1.01,
-    "alpha": 0.2,
+    "bias": 1,
+    "alpha": 0,
     "gamma": 0.3,
 }
 H_RIRS = ["deverb_test_samples/IMP_short.wav", "deverb_test_samples/IMP_medium.wav", "deverb_test_samples/IMP_long.wav"]
 SAMPLES = ["deverb_test_samples/test_short.wav", "deverb_test_samples/test_medium.wav", "deverb_test_samples/test_long.wav"]
-plots = False
+plots = True
 
 
 def read_H_rir(path):
@@ -63,8 +63,8 @@ def plot_errors(x, errors, title, x_label, x_ticks=False):
     fig, ax = plt.subplots(figsize=(6, 4))
     if x_ticks:
         x_t = np.arange(0, errors.size)
+        plt.setp(ax, xticks=x_t, xticklabels=x)
         ax.plot(x_t, errors)
-        ax.set_xticks(x_t, x)
     else:
         ax.plot(x, errors)
     ax.set_title(title)
@@ -127,7 +127,7 @@ def test_win_len(wave, fs, rir_path):
 
 
 def test_win_ovlap(wave, fs, rir_path):
-    print("Testing window lengths")
+    print("Testing window overlaps")
 
     def_ovlap = PARAMS["win_ovlap"]
 
@@ -152,7 +152,7 @@ def test_win_ovlap(wave, fs, rir_path):
 
 
 def test_h_length(wave, fs, rir_path):
-    print("Testing window overlaps")
+    print("Testing response lengths")
 
     def_blocks = PARAMS["blocks"]
 
@@ -301,16 +301,16 @@ def test_gamma(wave, fs, rir_path):
 
 
 if __name__ == "__main__":
-    # plot_max_h_types()
+    plot_max_h_types()
 
     sample = 1
     wave, fs = sf.read(SAMPLES[sample])
 
-    test_win_len(wave, fs, H_RIRS[sample])
-    test_win_ovlap(wave, fs, H_RIRS[sample])
-    test_h_length(wave, fs, H_RIRS[sample])
-    test_h_type(wave, fs, H_RIRS[sample])
+    # test_win_len(wave, fs, H_RIRS[sample])
+    # test_win_ovlap(wave, fs, H_RIRS[sample])
+    # test_h_length(wave, fs, H_RIRS[sample])
+    # test_h_type(wave, fs, H_RIRS[sample])
     # test_min_gain_dry(wave, fs, H_RIRS[sample])     # irrelevant
-    test_bias(wave, fs, H_RIRS[sample])
-    test_alpha(wave, fs, H_RIRS[sample])
+    # test_bias(wave, fs, H_RIRS[sample])
+    # test_alpha(wave, fs, H_RIRS[sample])
     # test_gamma(wave, fs, H_RIRS[sample])            # irrelevant
