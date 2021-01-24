@@ -27,7 +27,7 @@ DEF_PARAMS = {
     "min_gain_dry": 0,
     "bias": 1.01,
     "alpha": 0.1,
-    "gamma": 0.1,
+    "gamma": 0.7,
 }
 TITLES = ["aula1_12", "kitchen_12", "stairway1_1", "test"]
 SAMPLES = ["sploty/aula1/aula1_12.wav", "sploty/kitchen/kitchen_12.wav", "sploty/stairway1/stairway1_1.wav", "deverb_test_samples/test_raw.wav"]
@@ -76,7 +76,29 @@ def read_impulse_response(path, target_fs, target_bins, win_len, win_ovlap):
     return H[:, 0:target_bins // 2 + 1], H.shape[0]
 
 
-def dereverberate(wave, fs, params=None, estimate_execution_time=True):
+def printProgressBar (iteration, total, prefix='', suffix='', decimals=1, length=100, fill='█', printEnd="\r"):
+    """
+    Call in a loop to create terminal progress bar
+    @params:
+        iteration   - Required  : current iteration (Int)
+        total       - Required  : total iterations (Int)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : positive number of decimals in percent complete (Int)
+        length      - Optional  : character length of bar (Int)
+        fill        - Optional  : bar fill character (Str)
+        printEnd    - Optional  : end character (e.g. "\r", "\r\n") (Str)
+    """
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    filledLength = int(length * iteration // total)
+    bar = fill * filledLength + '-' * (length - filledLength)
+    print(f'\r{prefix} |{bar}| {percent}% {suffix}', end = printEnd)
+    # Print New Line on Complete
+    if iteration == total:
+        print()
+
+
+def dereverberate(wave, fs, params=None, estimate_execution_time=True, show_progress_bar=True):
     """
     Estimates the impulse response in a room the recording took place
 
@@ -84,6 +106,7 @@ def dereverberate(wave, fs, params=None, estimate_execution_time=True):
     :param fs: int - sampling frequency
     :param params: dict containing the algorithm parameters - keys:
     :param estimate_execution_time: should we print estimated execution time for each next frame
+    :param show_progress_bar: should we print progress bar of estimation
     :returns: (h_stft_pow) 2-D ndarray power STFT of h_rir,
               (wave_dry) 1-D ndarray of the dry signal,
               (wave_wet) 1-D ndarray of the wet signal
@@ -186,6 +209,8 @@ def dereverberate(wave, fs, params=None, estimate_execution_time=True):
 
         if estimate_execution_time:
             loop_times[0] = round(1000 * (time.time() - loop_times[0]))
+        if show_progress_bar:
+            printProgressBar(i, frame_count, prefix='Progress', suffix='Complete', length=30)
 
     window = optimal_synth_window(window, win_ovlap)
 
@@ -206,6 +231,7 @@ def dereverberate(wave, fs, params=None, estimate_execution_time=True):
 
     wave_dry = reconstruct(dry_stft, window, win_ovlap)
     wave_wet = reconstruct(wet_stft, window, win_ovlap)
+
 
     return h_stft_pow, wave_dry, wave_wet
 
