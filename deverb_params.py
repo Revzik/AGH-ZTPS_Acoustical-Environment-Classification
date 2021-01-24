@@ -301,7 +301,7 @@ def test_gamma(wave, fs, rir_path):
 
 
 if __name__ == "__main__":
-    plot_max_h_types()
+    # plot_max_h_types()
 
     sample = 1
     wave, fs = sf.read(SAMPLES[sample])
@@ -309,7 +309,7 @@ if __name__ == "__main__":
     # test_win_len(wave, fs, H_RIRS[sample])
     # test_win_ovlap(wave, fs, H_RIRS[sample])
     # test_h_length(wave, fs, H_RIRS[sample])
-    # test_h_type(wave, fs, H_RIRS[sample])
+    test_h_type(wave, fs, H_RIRS[sample])
     # test_min_gain_dry(wave, fs, H_RIRS[sample])     # irrelevant
     # test_bias(wave, fs, H_RIRS[sample])
     # test_alpha(wave, fs, H_RIRS[sample])

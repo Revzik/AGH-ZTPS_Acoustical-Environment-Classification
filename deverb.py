@@ -21,31 +21,31 @@ from parameterization import STFT, iSTFT, optimal_synth_window, first_larger_squ
 
 DEF_PARAMS = {
     "win_len": 25,
-    "win_ovlap": 0.6,
-    "blocks": 400,
+    "win_ovlap": 0.75,
+    "blocks": 800,
     "max_h_type": "lin-lin",
     "min_gain_dry": 0,
-    "bias": 1,
+    "bias": 1.01,
     "alpha": 0.1,
-    "gamma": 0.3,
+    "gamma": 0.1,
 }
-TITLES = ["short", "medium", "long"]
-H_RIR = ["deverb_test_samples/IMP_short.wav", "deverb_test_samples/IMP_medium.wav", "deverb_test_samples/IMP_long.wav"]
-SAMPLES = ["deverb_test_samples/test_short.wav", "deverb_test_samples/test_medium.wav", "deverb_test_samples/test_long.wav"]
+TITLES = ["aula1_12", "kitchen_12", "stairway1_1", "test"]
+SAMPLES = ["sploty/aula1/aula1_12.wav", "sploty/kitchen/kitchen_12.wav", "sploty/stairway1/stairway1_1.wav", "deverb_test_samples/test_raw.wav"]
+TEST_SCOPE = False
 
 
 def get_max_h_matrix(type, freqs, blocks):
     if type == "log-log":
-        return np.logspace(np.ones(freqs), np.ones(freqs) * np.finfo(np.float32).eps, blocks) * \
-               np.logspace(np.ones(blocks), np.ones(blocks) * np.finfo(np.float32).eps, freqs).T
+        return (np.logspace(np.ones(freqs), np.ones(freqs) * np.finfo(np.float32).eps, blocks) *
+                np.logspace(np.ones(blocks), np.ones(blocks) * np.finfo(np.float32).eps, freqs).T - 1) / 99
     elif type == "log-lin":
-        return np.logspace(np.ones(freqs), np.ones(freqs) * np.finfo(np.float32).eps, blocks) * \
-               np.linspace(np.ones(blocks), np.zeros(blocks), freqs).T
+        return (np.logspace(np.ones(freqs), np.ones(freqs) * np.finfo(np.float32).eps, blocks) *
+                np.linspace(np.ones(blocks), np.zeros(blocks), freqs).T) / 9
     elif type == "log-full":
-        return np.logspace(np.ones(freqs), np.ones(freqs) * np.finfo(np.float32).eps, blocks)
+        return (np.logspace(np.ones(freqs), np.ones(freqs) * np.finfo(np.float32).eps, blocks) - 1) / 9
     elif type == "lin-log":
-        return np.logspace(np.ones(freqs), np.ones(freqs) * np.finfo(np.float32).eps, blocks) * \
-               np.logspace(np.ones(blocks), np.ones(blocks) * np.finfo(np.float32).eps, freqs).T
+        return (np.logspace(np.ones(freqs), np.ones(freqs) * np.finfo(np.float32).eps, blocks) *
+                np.logspace(np.ones(blocks), np.ones(blocks) * np.finfo(np.float32).eps, freqs).T - 1) / 9
     elif type == "lin-lin":
         return np.linspace(np.ones(freqs), np.zeros(freqs), blocks) * \
                np.linspace(np.ones(blocks), np.zeros(blocks), freqs).T
@@ -59,7 +59,21 @@ def reconstruct(stft, window, overlap):
     frame_count, frequency_count = stft.shape
     sym_stft = np.hstack((stft, np.flipud(np.conj(stft[:, 0:frequency_count - 2]))))
     signal = np.real(iSTFT(sym_stft, window, overlap))
-    return signal / np.max(np.abs(signal))
+    return signal
+
+
+def read_impulse_response(path, target_fs, target_bins, win_len, win_ovlap):
+    h, h_fs = sf.read(path)
+    h /= np.max(np.abs(h))
+    nfft = int(target_bins * h_fs / target_fs)
+
+    win_len = int(win_len / 1000 * h_fs)
+    win_ovlap = int(win_len * win_ovlap)
+    window = np.hanning(win_len)
+
+    H = STFT(h, window, win_ovlap, nfft, power=True)
+
+    return H[:, 0:target_bins // 2 + 1], H.shape[0]
 
 
 def dereverberate(wave, fs, params=None, estimate_execution_time=True):
@@ -104,7 +118,8 @@ def dereverberate(wave, fs, params=None, estimate_execution_time=True):
     min_gain_dry = params["min_gain_dry"]
 
     # maximum impulse response estimate
-    max_h = get_max_h_matrix(params["max_h_type"], frequency_count, blocks)
+    # max_h, blocks = read_impulse_response("deverb_test_samples/stalbans_a_mono.wav", fs, nfft, win_len_ms, win_ovlap_p)
+    max_h = get_max_h_matrix('const', frequency_count, blocks)
 
     # bias used to keep magnitudes from getting stuck on a wrong minimum
     bias = params["bias"]
@@ -174,6 +189,21 @@ def dereverberate(wave, fs, params=None, estimate_execution_time=True):
 
     window = optimal_synth_window(window, win_ovlap)
 
+    if TEST_SCOPE:
+        t = (np.arange(frame_count) * (win_len_ms * (1 - win_ovlap_p))).astype(int)
+        f = np.linspace(0, fs / 2, frequency_count).astype(int)
+
+        txx, fxx = np.meshgrid(t, f)
+
+        fig, axes = plt.subplots(3, 1, figsize=(10, 10))
+        axes[0].pcolormesh(txx, fxx, np.log10(np.power(np.abs(sig_stft.T), 2)), cmap=plt.get_cmap('plasma'))
+        axes[0].set_title("Original signal")
+        axes[1].pcolormesh(txx, fxx, np.log10(np.power(np.abs(dry_stft.T), 2)), cmap=plt.get_cmap('plasma'))
+        axes[1].set_title("Dry signal")
+        axes[2].pcolormesh(txx, fxx, np.log10(np.power(np.abs(wet_stft.T), 2)), cmap=plt.get_cmap('plasma'))
+        axes[2].set_title("Reverberant signal")
+        fig.show()
+
     wave_dry = reconstruct(dry_stft, window, win_ovlap)
     wave_wet = reconstruct(wet_stft, window, win_ovlap)
 
@@ -182,9 +212,13 @@ def dereverberate(wave, fs, params=None, estimate_execution_time=True):
 
 def test_deverb():
     for i, item in enumerate(SAMPLES):
+    # i = 3
+    # item = SAMPLES[3]
+        print("Estimating " + item)
+
         wave, fs = sf.read(item)
         wave = wave / np.max(np.abs(wave))
-        H_rir, dry_wav, wet_wav = dereverberate(wave, fs)
+        H_rir, dry_wav, wet_wav = dereverberate(wave, fs, estimate_execution_time=False)
 
         min_size = np.min([wave.size, dry_wav.size, wet_wav.size])
         t = np.linspace(0, min_size / fs, min_size)
@@ -208,7 +242,7 @@ def test_deverb():
         fxx, txx = np.meshgrid(f, t)
 
         fig, ax = plt.subplots(figsize=(6, 5))
-        ax.pcolormesh(txx, fxx, H_rir)
+        ax.pcolormesh(txx, fxx, np.log10(H_rir), cmap=plt.get_cmap('plasma'))
         ax.set_title(r"estimated $H_{rir}$: " + TITLES[i])
         ax.set_xlabel(r"time $[s]$")
         ax.set_ylabel(r"frequency $[kHz]$")
@@ -221,4 +255,5 @@ def test_deverb():
 
 
 if __name__ == "__main__":
+    TEST_SCOPE = True
     test_deverb()

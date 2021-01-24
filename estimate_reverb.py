@@ -16,6 +16,10 @@ from deverb import dereverberate
 
 dir_in = "sploty"
 dir_out = "out"
+MODE_DRY = 0
+MODE_WET = 1
+MODE_H = 2
+MODE = MODE_WET
 
 
 def check_out_directory(path):
@@ -53,16 +57,35 @@ def scan_directory(path):
 def load_and_estimate(path):
     path = os.path.join(dir_in, path)
     wave, fs = sf.read(path)
-    H_rir, _, _ = dereverberate(wave, fs, estimate_execution_time=False)
-    return H_rir
+    if MODE == MODE_H:
+        H_rir, _, _ = dereverberate(wave, fs, estimate_execution_time=False)
+        data = {"fs": fs,
+                'frame_count': H_rir.shape[0],
+                'freq_count': H_rir.shape[1],
+                'h_rir': H_rir}
+    elif MODE == MODE_DRY:
+        _, dry, _ = dereverberate(wave, fs, estimate_execution_time=False)
+        data = {"fs": fs,
+                "wave": dry}
+    else:
+        _, _, reverberant = dereverberate(wave, fs, estimate_execution_time=False)
+        data = {"fs": fs,
+                "wave": reverberant}
+    return data
 
 
 def save_to_file(path, data):
-    path = os.path.splitext(path)[0] + ".p"
-    path = os.path.join(dir_out, path)
+    if MODE == MODE_H:
+        path = os.path.splitext(path)[0] + ".p"
+        path = os.path.join(dir_out, path)
 
-    with open(path, "wb") as f:
-        pickle.dump(data, f)
+        with open(path, "wb") as f:
+            pickle.dump(data, f)
+    else:
+        path = os.path.join(dir_out, path)
+
+        with open(path, "wb") as f:
+            sf.write(f, data["wave"], data["fs"])
 
 
 if __name__ == "__main__":
@@ -80,8 +103,8 @@ if __name__ == "__main__":
         for j, file in enumerate(paths[directory]):
             print("Processing {} ({}/{})".format(file, j + 1, len(paths[directory])))
 
-            response = load_and_estimate(file)
-            save_to_file(file, response)
+            estimated = load_and_estimate(file)
+            save_to_file(file, estimated)
             file_counter += 1
 
     print("Processed {} files".format(file_counter))
